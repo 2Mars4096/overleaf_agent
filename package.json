@@ -1,0 +1,8 @@
+{
+  "name": "skill-overleaf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "discovery": "node tools/overleaf-discovery.mjs"
+  }
+}
