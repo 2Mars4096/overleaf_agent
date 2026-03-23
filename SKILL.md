@@ -43,6 +43,7 @@ Do not present this as a full editor integration. The repo currently provides a 
 
 3. Prefer the deterministic CLI over ad hoc request snippets, but keep it behind the agent.
    - The CLI auto-loads `overleaf-agent.settings.json` or `.overleaf-agent.json` from the current directory.
+   - The packaged skill is self-contained; it does not require a post-install `npm install`.
    - Use `--config <path>` for a custom settings file and `--profile <name>` for named profiles.
    - These commands are internal execution details for the agent.
    - Only show raw commands when the user explicitly asks for manual CLI usage or debugging details.

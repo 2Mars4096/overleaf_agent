@@ -1,8 +1,9 @@
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { CookieXMLHttpRequest } from './cookie-xml-http-request.mjs';
 
 const require = createRequire(import.meta.url);
-const io = require('socket.io-client/dist/socket.io.js');
+const io = require(fileURLToPath(new URL('../vendor/socket.io-client-0.9.17.cjs', import.meta.url)));
 
 export async function runSocketSession(config, handler) {
   const originalRequest = io.util.request;

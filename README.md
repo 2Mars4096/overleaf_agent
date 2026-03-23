@@ -2,6 +2,10 @@
 
 Reusable Overleaf agent skill pack for Codex, Claude, Cursor, and similar assistants.
 
+The repo is self-contained:
+- no `npm install` step is required after skill installation
+- the runtime socket client bundle is vendored in `vendor/`
+
 Convenience entrypoint:
 - `npm run overleaf -- <command>`
 - `npm run discovery -- <command>` still works as the backward-compatible alias
@@ -34,6 +38,8 @@ Intended UX:
 - use the root `SKILL.md` as the canonical instructions
 - the root `AGENTS.md` is the repo-local Codex adapter for direct use of this repo
 - for other repos, copy or adapt `adapters/codex/AGENTS.md`
+- when using Codex's GitHub skill installer, install the repo root as the skill path and name it `overleaf-agent`
+- after installation, restart Codex to pick up the new skill
 
 ## User-Editable Settings
 
@@ -118,6 +124,11 @@ The preferred skill experience is:
 2. the agent runs `connect` internally and stores it in the gitignored local settings
 3. the user asks for project reads or edits in plain language
 4. the agent handles validation, project selection, reads, and edits internally
+
+Example Codex request:
+1. "Install this skill for me: https://github.com/2Mars4096/overleaf_cli"
+2. restart Codex
+3. "Use the overleaf-agent skill and connect to Overleaf with this cookie: ..."
 
 ## Manual Fallback
 
