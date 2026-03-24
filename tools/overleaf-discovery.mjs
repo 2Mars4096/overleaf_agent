@@ -11,6 +11,7 @@ const DEFAULT_BASE_URL = 'https://www.overleaf.com';
 const DEFAULT_CONFIG_FILENAMES = ['overleaf-agent.settings.json', '.overleaf-agent.json'];
 const MERGEABLE_SETTINGS_KEYS = new Set(['headers', 'endpoints', 'methods']);
 const DEFAULT_PROFILE_NAME = 'personal';
+const COOKIE_PLACEHOLDER = 'paste-the-full-Cookie-request-header-here';
 const DEFAULT_ROOT_FILE = 'main.tex';
 const DEFAULT_COMPILER = 'pdflatex';
 const EXAMPLE_SETTINGS_URL = new URL('../overleaf-agent.settings.example.json', import.meta.url);
@@ -64,8 +65,12 @@ function loadConfig(command, options, extraArgs) {
   );
   const settings = settingsState.settings;
   const baseUrl = firstConfigured(options.baseUrl, env.OVERLEAF_BASE_URL, settings.baseUrl, DEFAULT_BASE_URL);
-  const cookieHeader = firstConfigured(options.cookie, env.OVERLEAF_COOKIE_HEADER, settings.cookieHeader);
   const cookieStdin = toBoolean(firstConfigured(options.cookieStdin, env.OVERLEAF_COOKIE_STDIN));
+  const preferIncomingCookie = command === 'connect' && (cookieStdin || !process.stdin.isTTY);
+  const storedCookieHeader = sanitizeCookieHeaderValue(settings.cookieHeader) || undefined;
+  const cookieHeader = preferIncomingCookie
+    ? firstConfigured(options.cookie, env.OVERLEAF_COOKIE_HEADER)
+    : firstConfigured(options.cookie, env.OVERLEAF_COOKIE_HEADER, storedCookieHeader);
   const csrfToken = firstConfigured(options.csrf, env.OVERLEAF_CSRF_TOKEN, settings.csrfToken);
   const projectId = firstConfigured(options.projectId, env.OVERLEAF_PROJECT_ID, settings.projectId);
   const projectName = firstConfigured(env.OVERLEAF_PROJECT_NAME, settings.projectName);
@@ -786,7 +791,7 @@ function buildDefaultSettingsSource(requestedProfile) {
       source.defaultProfile = profileName;
       source.profiles ??= {};
       source.profiles[profileName] ??= {
-        cookieHeader: 'paste-the-full-Cookie-request-header-here',
+        cookieHeader: COOKIE_PLACEHOLDER,
       };
     }
     return source;
@@ -800,7 +805,7 @@ function buildDefaultSettingsSource(requestedProfile) {
       sendMutations: false,
       profiles: {
         [profileName]: {
-          cookieHeader: 'paste-the-full-Cookie-request-header-here',
+          cookieHeader: COOKIE_PLACEHOLDER,
         },
       },
     };
@@ -816,14 +821,23 @@ function writeSettingsFile(path, source) {
 }
 
 async function resolveIncomingCookie(config) {
-  if (config.cookieHeader) {
-    return String(config.cookieHeader).trim();
+  const configuredCookie = sanitizeCookieHeaderValue(config.cookieHeader);
+  if (configuredCookie) {
+    return configuredCookie;
   }
   if (config.cookieStdin || !process.stdin.isTTY) {
     const value = await readStdinText();
-    return String(value || '').trim();
+    return sanitizeCookieHeaderValue(value);
   }
   return '';
+}
+
+function sanitizeCookieHeaderValue(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized === COOKIE_PLACEHOLDER) {
+    return '';
+  }
+  return normalized;
 }
 
 async function readStdinText() {
