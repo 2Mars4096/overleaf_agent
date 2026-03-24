@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname as pathDirname, posix as pathPosix, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { applyOtUpdate, joinDoc, runSocketSession } from './overleaf-realtime.mjs';
 
 const SECRET_KEYS = new Set(['cookie', 'cookieheader', 'csrf', 'csrftoken', 'authorization', 'auth', 'set-cookie', 'x-csrf-token']);
@@ -30,11 +31,13 @@ const PROFILE_RESET_PRESERVE_KEYS = new Set([
   'outputFile',
 ]);
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.stack || error.message : String(error);
-  console.error(message);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
+    console.error(message);
+    process.exitCode = 1;
+  });
+}
 
 async function main() {
   const { command, options, extraArgs } = parseArgs(process.argv.slice(2));
@@ -1373,7 +1376,8 @@ async function downloadProjectPdf(config) {
   const request = buildBinaryDownloadRequest(config, pdfUrl);
   const response = await executeBinaryRequest(request, config);
   if (!response.ok) {
-    throw new Error(`download-pdf: expected a PDF response but received ${response.status} ${response.statusText}`);
+    const statusLabel = response.statusText ? `${response.status} ${response.statusText}` : String(response.status);
+    throw new Error(`download-pdf: expected a PDF response but received ${statusLabel}`);
   }
   const contentType = String(response.headers['content-type'] || '');
   if (contentType && !contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
@@ -2524,3 +2528,15 @@ function defaultPdfOutputFile(config) {
     .replace(/^_+|_+$/g, '') || 'overleaf-output';
   return `${safeName}.pdf`;
 }
+
+export const __test__ = {
+  COOKIE_PLACEHOLDER,
+  buildBinaryDownloadRequest,
+  downloadProjectPdf,
+  executeBinaryRequest,
+  executeRequest,
+  loadConfig,
+  parseCompilePayload,
+  resolveCompileOutputUrl,
+  sanitizeCookieHeaderValue,
+};
