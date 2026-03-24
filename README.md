@@ -18,6 +18,7 @@ Intended UX:
 ## What It Does
 
 - validates imported Overleaf browser sessions
+- reports the installed skill version and can check whether the GitHub repo has a newer release-ready copy
 - runs a local `doctor` readiness check for auth, project selection, and vendored runtime health
 - lists projects and inspects project file trees
 - fetches realtime project snapshots with entity ids
@@ -42,6 +43,7 @@ Intended UX:
 - for other repos, copy or adapt `adapters/codex/AGENTS.md`
 - when using Codex's GitHub skill installer, install the repo root as the skill path and name it `overleaf-agent`
 - after installation, restart Codex to pick up the new skill
+- when you publish updates, users should reinstall from the same GitHub URL and restart Codex
 
 ## User-Editable Settings
 
@@ -106,6 +108,8 @@ Safety notes:
 
 ```bash
 npm run overleaf -- setup
+npm run overleaf -- version
+npm run overleaf -- update-check
 npm run overleaf -- doctor
 npm run overleaf -- status
 npm run overleaf -- connect --cookie-stdin
@@ -138,21 +142,26 @@ Example Codex request:
 2. restart Codex
 3. "Use the overleaf-agent skill and connect to Overleaf with this cookie: ..."
 
+When `update-check` says a newer version is available, the update instruction should be:
+1. "Reinstall the overleaf-agent skill from https://github.com/2Mars4096/overleaf_agent"
+2. restart Codex
+
 ## Manual Fallback
 
 1. Run `npm run overleaf -- setup`.
-2. Save auth with either:
+2. Optionally run `npm run overleaf -- update-check` to see whether the installed copy is behind the public repo.
+3. Save auth with either:
    - `npm run overleaf -- connect --cookie '<full cookie header>'`
    - or `pbpaste | npm run overleaf -- connect --cookie-stdin` on macOS
-3. Keep `sendMutations: false` for the first pass.
-4. Run:
+4. Keep `sendMutations: false` for the first pass.
+5. Run:
    - `npm run overleaf -- validate`
    - `npm run overleaf -- projects`
    - `npm run overleaf -- use-project "<project name or id>"`
    - `npm run overleaf -- snapshot`
    - `npm run overleaf -- read --file-path /main.tex`
-5. Switch to a throwaway doc.
-6. Run:
+6. Switch to a throwaway doc.
+7. Run:
    - `npm run overleaf -- edit --file-path /main.tex --text-file ./main.tex`
    - rerun the same command with `--send --confirm <token-from-preview>` after reviewing the plan
 

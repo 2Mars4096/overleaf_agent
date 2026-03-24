@@ -22,6 +22,8 @@ The user-facing experience should be natural language. The agent should execute 
 4. Prefer the repo's Overleaf CLI internally instead of inventing raw requests.
    Do not default to telling the user to run these commands themselves.
    - `npm run overleaf -- setup`
+   - `npm run overleaf -- version`
+   - `npm run overleaf -- update-check`
    - `npm run overleaf -- doctor`
    - `npm run overleaf -- status`
    - `npm run overleaf -- connect --cookie-stdin`
@@ -47,3 +49,4 @@ The user-facing experience should be natural language. The agent should execute 
 - Never commit a live `overleaf-agent.settings.json` file.
 - Never forward imported auth material to non-Overleaf hosts.
 - Do not present this workflow as a finished editor integration.
+- When `update-check` reports a newer version, tell the user to reinstall the skill from `https://github.com/2Mars4096/overleaf_agent` and restart Codex.

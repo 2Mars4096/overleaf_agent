@@ -20,6 +20,8 @@ The user-facing workflow should be natural language. Cursor should execute the l
 4. Prefer the local Overleaf CLI internally over hand-built requests.
    Do not default to telling the user to run these commands themselves.
    - `npm run overleaf -- setup`
+   - `npm run overleaf -- version`
+   - `npm run overleaf -- update-check`
    - `npm run overleaf -- doctor`
    - `npm run overleaf -- status`
    - `npm run overleaf -- connect --cookie-stdin`
@@ -45,3 +47,4 @@ The user-facing workflow should be natural language. Cursor should execute the l
 - Never forward imported auth material to non-Overleaf hosts.
 - Use `docs/overleaf-request-contract.md` for the current source-verified contract.
 - Do not describe this repo as a finished editor integration.
+- When `update-check` reports a newer version, tell the user to refresh the local skill copy from `https://github.com/2Mars4096/overleaf_agent`.

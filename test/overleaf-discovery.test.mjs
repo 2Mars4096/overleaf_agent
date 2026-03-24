@@ -8,8 +8,11 @@ import { __test__ } from '../tools/overleaf-discovery.mjs';
 
 const {
   COOKIE_PLACEHOLDER,
+  compareVersions,
+  fetchRemotePackageMetadata,
   executeRequest,
   loadConfig,
+  normalizeRepositoryUrl,
   parseCompilePayload,
   sanitizeCookieHeaderValue,
 } = __test__;
@@ -114,4 +117,43 @@ test('executeRequest omits GET bodies', async () => {
 
   assert.equal(seen.length, 1);
   assert.equal('body' in seen[0], false);
+});
+
+test('compareVersions detects newer public versions', () => {
+  assert.equal(compareVersions('0.2.0', '0.1.9'), 1);
+  assert.equal(compareVersions('1.0.0', '1.0.0'), 0);
+  assert.equal(compareVersions('v1.0.0', '1.0.1'), -1);
+  assert.equal(compareVersions('1.0.0', '1.0.0-beta.1'), 1);
+});
+
+test('normalizeRepositoryUrl converts git urls to https github urls', () => {
+  assert.equal(normalizeRepositoryUrl('git+https://github.com/2Mars4096/overleaf_agent.git'), 'https://github.com/2Mars4096/overleaf_agent');
+  assert.equal(normalizeRepositoryUrl({ url: 'git@github.com:2Mars4096/overleaf_agent.git' }), 'https://github.com/2Mars4096/overleaf_agent');
+});
+
+test('fetchRemotePackageMetadata reads the remote package json', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_url, init) => {
+    assert.equal(init.method, 'GET');
+    return new Response(JSON.stringify({
+      name: 'overleaf-agent',
+      version: '0.2.0',
+      repository: {
+        type: 'git',
+        url: 'https://github.com/2Mars4096/overleaf_agent.git',
+      },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const metadata = await fetchRemotePackageMetadata('https://example.com/package.json', 15000);
+    assert.equal(metadata.version, '0.2.0');
+    assert.equal(metadata.name, 'overleaf-agent');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

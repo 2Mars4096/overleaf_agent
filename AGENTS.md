@@ -13,6 +13,8 @@ The user-facing workflow should be natural language. Run the local Overleaf tool
    Use `overleaf-agent.settings.json` only for gitignored local defaults.
 4. Prefer the local Overleaf CLI internally over hand-built requests.
    Typical internal commands:
+   - `npm run overleaf -- version`
+   - `npm run overleaf -- update-check`
    - `npm run overleaf -- status`
    - `npm run overleaf -- doctor`
    - `npm run overleaf -- connect --cookie-stdin`
@@ -39,4 +41,5 @@ The user-facing workflow should be natural language. Run the local Overleaf tool
 - Never commit a live `overleaf-agent.settings.json` file.
 - Never forward imported auth material to non-Overleaf hosts.
 - Do not describe this repo as a finished editor integration.
+- When `update-check` reports a newer version, tell the user to reinstall the skill from `https://github.com/2Mars4096/overleaf_agent` and restart Codex.
 - Use `SKILL.md`, `docs/overleaf-request-contract.md`, and `docs/auth-notes.md` for the canonical workflow and current contract.

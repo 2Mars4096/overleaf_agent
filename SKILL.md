@@ -48,6 +48,7 @@ Do not present this as a full editor integration. The repo currently provides a 
    - These commands are internal execution details for the agent.
    - Only show raw commands when the user explicitly asks for manual CLI usage or debugging details.
    - Normal agent flow:
+     - if the user suspects the installed copy is stale, run `update-check` and tell them exactly how to reinstall from GitHub when an update is available
      - if settings are missing, create them
      - run doctor when install/runtime health is uncertain
      - if auth is missing, ask for the cookie once and run `connect`
@@ -57,6 +58,8 @@ Do not present this as a full editor integration. The repo currently provides a 
      - run read/snapshot/edit/mutation actions internally
    - Internal command examples:
      - `npm run overleaf -- setup`
+     - `npm run overleaf -- version`
+     - `npm run overleaf -- update-check`
      - `npm run overleaf -- doctor`
      - `npm run overleaf -- status`
      - `npm run overleaf -- connect --cookie-stdin`
@@ -102,6 +105,7 @@ Do not present this as a full editor integration. The repo currently provides a 
 
 - Be explicit about what is source-verified versus live-instance-validated.
 - Prefer handling the workflow directly instead of giving the user command lists.
+- When `update-check` reports a newer public version, tell the user to reinstall the skill from `https://github.com/2Mars4096/overleaf_agent` and restart Codex.
 - Prefer small runnable commands over large speculative code blocks only when manual CLI usage is explicitly requested.
 - If the user asks whether they can edit Overleaf from another project, answer carefully:
   - yes for this reusable agent workflow once the skill or adapter is installed and a valid session cookie is configured

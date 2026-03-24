@@ -16,7 +16,7 @@ export const CookieXMLHttpRequest = function () {
     Accept: '*/*',
   };
 
-  let headers = defaultHeaders;
+  let headers = { ...defaultHeaders };
 
   // Keep Cookie enabled so the socket.io v0 polling handshake can reuse a browser session.
   const forbiddenRequestHeaders = [
@@ -70,6 +70,7 @@ export const CookieXMLHttpRequest = function () {
   this.open = function (method, url, async, user, password) {
     this.abort();
     errorFlag = false;
+    response = null;
 
     if (!isAllowedHttpMethod(method)) {
       throw new Error('SecurityError: Request method not allowed');
@@ -104,8 +105,9 @@ export const CookieXMLHttpRequest = function () {
     if (
       typeof header === 'string' &&
       this.readyState > this.OPENED &&
-      response.headers[header.toLowerCase()] &&
-      !errorFlag
+      !errorFlag &&
+      response?.headers &&
+      response.headers[header.toLowerCase()]
     ) {
       return response.headers[header.toLowerCase()];
     }
@@ -114,7 +116,7 @@ export const CookieXMLHttpRequest = function () {
   };
 
   this.getAllResponseHeaders = function () {
-    if (this.readyState < this.HEADERS_RECEIVED || errorFlag) {
+    if (this.readyState < this.HEADERS_RECEIVED || errorFlag || !response?.headers) {
       return '';
     }
 
@@ -328,6 +330,7 @@ export const CookieXMLHttpRequest = function () {
     this.statusText = error;
     this.responseText = error?.stack || String(error);
     errorFlag = true;
+    response = null;
     setState(this.DONE);
   };
 
@@ -337,10 +340,11 @@ export const CookieXMLHttpRequest = function () {
       request = null;
     }
 
-    headers = defaultHeaders;
+    headers = { ...defaultHeaders };
     this.responseText = '';
     this.responseXML = '';
     errorFlag = true;
+    response = null;
 
     if (
       this.readyState !== this.UNSENT &&

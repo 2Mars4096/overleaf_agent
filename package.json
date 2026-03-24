@@ -1,7 +1,12 @@
 {
-  "name": "skill-overleaf",
+  "name": "overleaf-agent",
   "private": true,
+  "version": "0.1.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/2Mars4096/overleaf_agent.git"
+  },
   "scripts": {
     "discovery": "node tools/overleaf-discovery.mjs",
     "overleaf": "node tools/overleaf-discovery.mjs",

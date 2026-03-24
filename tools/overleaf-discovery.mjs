@@ -16,6 +16,7 @@ const COOKIE_PLACEHOLDER = 'paste-the-full-Cookie-request-header-here';
 const DEFAULT_ROOT_FILE = 'main.tex';
 const DEFAULT_COMPILER = 'pdflatex';
 const EXAMPLE_SETTINGS_URL = new URL('../overleaf-agent.settings.example.json', import.meta.url);
+const PACKAGE_JSON_URL = new URL('../package.json', import.meta.url);
 const PROFILE_RESET_PRESERVE_KEYS = new Set([
   'baseUrl',
   'socketUrl',
@@ -29,6 +30,11 @@ const PROFILE_RESET_PRESERVE_KEYS = new Set([
   'compiler',
   'rootFile',
 ]);
+const LOCAL_PACKAGE_METADATA = readLocalPackageMetadata();
+const SKILL_NAME = String(LOCAL_PACKAGE_METADATA.name || 'overleaf-agent');
+const SKILL_VERSION = String(LOCAL_PACKAGE_METADATA.version || '0.0.0');
+const SKILL_REPOSITORY_URL = normalizeRepositoryUrl(LOCAL_PACKAGE_METADATA.repository) || 'https://github.com/2Mars4096/overleaf_agent';
+const SKILL_UPDATE_URL = deriveRawGithubFileUrl(SKILL_REPOSITORY_URL, 'main', 'package.json') || 'https://raw.githubusercontent.com/2Mars4096/overleaf_agent/main/package.json';
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error) => {
@@ -88,6 +94,7 @@ function loadConfig(command, options, extraArgs) {
   const rootFile = firstConfigured(options.rootFile, options.mainFile, env.OVERLEAF_ROOT_FILE, env.OVERLEAF_MAIN_FILE, settings.rootFile, settings.mainFile);
   const compiler = firstConfigured(options.compiler, env.OVERLEAF_COMPILER, settings.compiler);
   const confirm = firstConfigured(options.confirm, env.OVERLEAF_CONFIRM);
+  const updateUrl = firstConfigured(options.updateUrl, env.OVERLEAF_UPDATE_URL, settings.updateUrl, SKILL_UPDATE_URL);
   const timeoutMs = numberFrom(firstConfigured(options.timeoutMs, env.OVERLEAF_TIMEOUT_MS, settings.timeoutMs), DEFAULT_TIMEOUT_MS);
   const json = toBoolean(firstConfigured(options.json, env.OVERLEAF_JSON, settings.json));
   const dryRun = toBoolean(firstConfigured(options.dryRun, env.OVERLEAF_DRY_RUN, settings.dryRun, command.startsWith('probe-')));
@@ -133,6 +140,7 @@ function loadConfig(command, options, extraArgs) {
     rootFile,
     compiler,
     confirm,
+    updateUrl,
     timeoutMs,
     json,
     dryRun,
@@ -242,6 +250,10 @@ async function runCommand(command, config) {
   switch (command) {
     case 'setup':
       return setupLocalConfig(config);
+    case 'version':
+      return versionCommand(config);
+    case 'update-check':
+      return updateCheckCommand(config);
     case 'doctor':
       return doctorCommand(config);
     case 'status':
@@ -352,6 +364,66 @@ async function setupLocalConfig(config) {
   };
 }
 
+function versionCommand(config) {
+  return {
+    label: 'version',
+    skillName: SKILL_NAME,
+    installedVersion: SKILL_VERSION,
+    repository: SKILL_REPOSITORY_URL,
+    updateSource: config.updateUrl || SKILL_UPDATE_URL,
+    notes: [
+      'Run update-check to compare this installed copy against the public GitHub repo.',
+      `To update manually, reinstall the skill from ${SKILL_REPOSITORY_URL} and restart Codex.`,
+    ],
+  };
+}
+
+async function updateCheckCommand(config) {
+  const result = {
+    label: 'update-check',
+    skillName: SKILL_NAME,
+    installedVersion: SKILL_VERSION,
+    repository: SKILL_REPOSITORY_URL,
+    updateSource: config.updateUrl || SKILL_UPDATE_URL,
+  };
+
+  try {
+    const remote = await fetchRemotePackageMetadata(result.updateSource, config.timeoutMs);
+    const latestVersion = String(remote.version || '');
+    if (!latestVersion) {
+      throw new Error('Update metadata did not include a version field.');
+    }
+    const latestRepository = normalizeRepositoryUrl(remote.repository) || result.repository;
+    const comparison = compareVersions(latestVersion, SKILL_VERSION);
+
+    return {
+      ...result,
+      latestVersion,
+      updateAvailable: comparison > 0,
+      upToDate: comparison <= 0,
+      notes: comparison > 0
+        ? [
+            `A newer version is available: ${SKILL_VERSION} -> ${latestVersion}.`,
+            `Update by asking Codex to reinstall the skill from ${latestRepository}, then restart Codex.`,
+          ]
+        : [
+            `This installed copy matches or exceeds the public repo version (${latestVersion || SKILL_VERSION}).`,
+            'No update action is needed right now.',
+          ],
+    };
+  } catch (error) {
+    return {
+      ...result,
+      checked: false,
+      error: error instanceof Error ? error.message : String(error),
+      notes: [
+        'The update check could not reach the public repo metadata.',
+        `To update manually, reinstall the skill from ${SKILL_REPOSITORY_URL} and restart Codex.`,
+      ],
+    };
+  }
+}
+
 function connectionStatus(config) {
   const connected = Boolean(config.cookieHeader);
   return {
@@ -413,6 +485,27 @@ async function doctorCommand(config) {
       : 'No default project is stored yet.',
   });
 
+  const updateStatus = await updateCheckCommand(config);
+  if (updateStatus.updateAvailable) {
+    checks.push({
+      name: 'skill updates',
+      status: 'warn',
+      message: `A newer public version is available (${SKILL_VERSION} -> ${updateStatus.latestVersion}). Reinstall from ${updateStatus.repository} and restart Codex.`,
+    });
+  } else if (updateStatus.checked === false) {
+    checks.push({
+      name: 'skill updates',
+      status: 'skip',
+      message: updateStatus.error || 'Could not reach the public repo metadata.',
+    });
+  } else {
+    checks.push({
+      name: 'skill updates',
+      status: 'pass',
+      message: `Installed version ${SKILL_VERSION} is current against the public repo.`,
+    });
+  }
+
   if (config.cookieHeader && !config.dryRun) {
     try {
       const catalog = await fetchProjectCatalog(config);
@@ -466,6 +559,7 @@ async function doctorCommand(config) {
   const hasFailure = checks.some(check => check.status === 'fail');
   const hasWarning = checks.some(check => check.status === 'warn');
   const nextSteps = [];
+  if (updateStatus.updateAvailable) nextSteps.push(`A newer skill version is available. Reinstall from ${updateStatus.repository} and restart Codex before relying on stale behavior.`);
   if (!config.cookieHeader) nextSteps.push('Connect an authenticated Overleaf cookie with connect before attempting live reads or edits.');
   if (!config.projectId) nextSteps.push('Use use-project to save a default target project for path-based commands.');
   if (config.cookieHeader && config.projectId) nextSteps.push('Run snapshot or read to inspect the current project, then edit/add-doc with a confirmation token when you are ready to mutate.');
@@ -1833,6 +1927,104 @@ function parseCompilePayload(body) {
   };
 }
 
+async function fetchRemotePackageMetadata(updateUrl, timeoutMs) {
+  if (!updateUrl) {
+    throw new Error('No update source URL is configured.');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+  try {
+    const response = await fetch(updateUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+        'User-Agent': `${SKILL_NAME}/${SKILL_VERSION}`,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Update metadata request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    const parsed = parseJson(text);
+    if (!isPlainObject(parsed)) {
+      throw new Error('Update metadata response was not a JSON object.');
+    }
+    return parsed;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function compareVersions(left, right) {
+  const leftVersion = parseVersionString(left);
+  const rightVersion = parseVersionString(right);
+
+  const maxLength = Math.max(leftVersion.parts.length, rightVersion.parts.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftPart = leftVersion.parts[index] || 0;
+    const rightPart = rightVersion.parts[index] || 0;
+    if (leftPart > rightPart) return 1;
+    if (leftPart < rightPart) return -1;
+  }
+
+  if (!leftVersion.prerelease && rightVersion.prerelease) return 1;
+  if (leftVersion.prerelease && !rightVersion.prerelease) return -1;
+  if (leftVersion.prerelease > rightVersion.prerelease) return 1;
+  if (leftVersion.prerelease < rightVersion.prerelease) return -1;
+  return 0;
+}
+
+function parseVersionString(value) {
+  const normalized = String(firstConfigured(value, '0.0.0'))
+    .trim()
+    .replace(/^v/i, '');
+  const [core, prerelease = ''] = normalized.split('-', 2);
+  const parts = core.split('.').map(part => {
+    const number = Number(part);
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  });
+  return { parts, prerelease };
+}
+
+function readLocalPackageMetadata() {
+  try {
+    const raw = readFileSync(PACKAGE_JSON_URL, 'utf8');
+    const parsed = JSON.parse(raw);
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRepositoryUrl(repository) {
+  const raw = typeof repository === 'string'
+    ? repository
+    : isPlainObject(repository)
+      ? repository.url
+      : '';
+  if (!raw) return '';
+
+  let normalized = String(raw).trim()
+    .replace(/^git\+/, '')
+    .replace(/\.git$/, '');
+
+  if (normalized.startsWith('git@github.com:')) {
+    normalized = `https://github.com/${normalized.slice('git@github.com:'.length)}`;
+  }
+
+  return normalized;
+}
+
+function deriveRawGithubFileUrl(repositoryUrl, ref, filepath) {
+  const match = String(repositoryUrl).match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i);
+  if (!match) return '';
+  return `https://raw.githubusercontent.com/${match[1]}/${match[2]}/${ref}/${filepath}`;
+}
+
 function summarizeResponse(label, request, response, config, endpointType = '') {
   const bodyPreview = previewBody(response.body, 1600);
   const parsedBody = parseJson(response.body);
@@ -2067,6 +2259,7 @@ function parseArgs(argv) {
         case 'root-file': options.rootFile = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
         case 'main-file': options.mainFile = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
         case 'compiler': options.compiler = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
+        case 'update-url': options.updateUrl = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
         case 'endpoint': options.endpoint = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
         case 'method': options.method = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
         case 'timeout-ms': options.timeoutMs = readArgValue(argv, i, inlineValue, key); if (inlineValue === undefined) i += 1; break;
@@ -2262,6 +2455,8 @@ function printUsage() {
 
 Commands:
   setup           Create or validate a local gitignored settings file
+  version         Show the installed skill version and update source
+  update-check    Compare the installed skill version against the public repo
   doctor          Run a local/self-test readiness check for the active profile
   status          Show whether the active profile has stored Overleaf auth
   connect         Save and validate an Overleaf cookie for the active profile
@@ -2308,6 +2503,7 @@ Options:
   --text-file <path>    Read replacement text for edit from a local file
   --root-file <path>    Root TeX file for compile; defaults to main.tex
   --compiler <name>     Compiler hint for compile; defaults to pdflatex
+  --update-url <url>    Override the remote package.json URL used by update-check
   --endpoint <path>     Override the endpoint template
   --method <verb>       Override the HTTP verb
   --header k=v          Add an extra header; repeatable
@@ -2340,6 +2536,7 @@ Environment:
   OVERLEAF_ROOT_FILE
   OVERLEAF_MAIN_FILE
   OVERLEAF_COMPILER
+  OVERLEAF_UPDATE_URL
   OVERLEAF_ENDPOINT
   OVERLEAF_VALIDATE_ENDPOINT
   OVERLEAF_PROJECTS_ENDPOINT
@@ -2360,8 +2557,11 @@ Settings file auto-discovery:
 
 export const __test__ = {
   COOKIE_PLACEHOLDER,
+  compareVersions,
+  fetchRemotePackageMetadata,
   executeRequest,
   loadConfig,
+  normalizeRepositoryUrl,
   parseCompilePayload,
   sanitizeCookieHeaderValue,
 };

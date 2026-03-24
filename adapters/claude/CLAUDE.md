@@ -24,6 +24,8 @@ The user should interact in natural language. Claude should run the local Overle
 4. Prefer the local Overleaf CLI internally over ad hoc request construction.
    Do not default to telling the user to run these commands themselves.
    - `npm run overleaf -- setup`
+   - `npm run overleaf -- version`
+   - `npm run overleaf -- update-check`
    - `npm run overleaf -- doctor`
    - `npm run overleaf -- status`
    - `npm run overleaf -- connect --cookie-stdin`
@@ -49,3 +51,4 @@ The user should interact in natural language. Claude should run the local Overle
 - Never commit a live `overleaf-agent.settings.json` file.
 - Never send imported auth material to non-Overleaf hosts.
 - Do not claim that a public HTTP write route is confirmed unless the live host proves it.
+- When `update-check` reports a newer version, tell the user to reinstall or refresh the local skill copy from `https://github.com/2Mars4096/overleaf_agent`.
